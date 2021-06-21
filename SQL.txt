@@ -1,0 +1,124 @@
+1) Artists and their  effectiveness of sales
+
+WITH t1 AS (SELECT a.ArtistId,al.Title AS name_album, COUNT(t.Name) count_tracks, SUM(i.UnitPrice) AS sales
+				    FROM Track t
+				    JOIN Album al
+				    ON t.AlbumId=al.AlbumId
+				    JOIN Artist a
+				    ON al.ArtistId=a.ArtistId
+				    JOIN InvoiceLine i
+				    ON t.TrackId = i.TrackId
+				    GROUP by 1,2),
+t2 AS (SELECT a.Name,COUNT(name_album) AS count_albums,SUM(count_tracks) AS count_tracks, sales
+			FROM Artist a
+			JOIN t1
+			ON t1.ArtistId = a.ArtistId
+			GROUP BY 1)
+
+SELECT *, (count_tracks/count_albums) AS avg_tracks_in_album, (sales/count_tracks) AS value_of_one_track
+FROM t2
+ORDER BY value_of_one_track
+
+
+2) Dependence of the sales on the average tracks in album
+
+WITH t1 AS (SELECT a.ArtistId,al.Title AS name_album, COUNT(t.Name) count_tracks, SUM(i.UnitPrice) AS sales
+	    FROM Track t
+	    JOIN Album al
+	    ON t.AlbumId=al.AlbumId
+	    JOIN Artist a
+	    ON al.ArtistId=a.ArtistId
+	    JOIN InvoiceLine i
+	    ON t.TrackId = i.TrackId
+	    GROUP by 1,2),
+t2 AS (SELECT a.Name,COUNT(name_album) AS count_albums,SUM(count_tracks) AS count_tracks, sales
+	FROM Artist a
+	JOIN t1
+	ON t1.ArtistId = a.ArtistId
+	GROUP BY 1)
+
+SELECT *, (count_tracks/count_albums) AS avg_tracks_in_album, (sales/count_tracks) AS value_of_one_track
+FROM t2
+
+
+3) Total sales by month
+
+
+WITH t2 AS(SELECT date,total, (total/tracks) AS ratio,tracks
+	FROM(
+		SELECT strftime('%m',InvoiceDate) AS date, COUNT(*) AS tracks, SUM(UnitPrice) AS total
+		FROM Invoice i
+		JOIN InvoiceLine il
+		ON i.InvoiceId=il.InvoiceId
+		GROUP BY 1) t1),
+      t3 AS(SELECT AVG(total/tracks) AS ratio
+	 	FROM(
+		  	SELECT strftime('%m',InvoiceDate) AS date, COUNT(*) AS tracks, SUM(UnitPrice) AS total
+		 		FROM Invoice i
+		  	JOIN InvoiceLine il
+		  	ON i.InvoiceId=il.InvoiceId
+		  	GROUP BY 1) t1)
+
+SELECT date, total,tracks, t2.ratio, CASE WHEN t2.ratio > t3.ratio THEN 'Above average' ELSE 'Below average' END AS above_or_below
+FROM t2
+JOIN t3
+ON date=date
+ORDER BY total
+
+
+4) Medium tracks
+
+
+
+WITH t3 AS (SELECT AVG(Milliseconds) avg_mil
+	    FROM(
+						SELECT (Milliseconds)
+							FROM(
+								SELECT Milliseconds
+								FROM Track
+								ORDER by 1 DESC
+								LIMIT 877) t1
+								ORDER BY 1
+								LIMIT 2) t2 ),
+t4 AS (SELECT AVG(Milliseconds)  AS avg_mil
+	FROM(
+		SELECT Milliseconds
+		FROM(
+				SELECT Milliseconds
+				FROM Track
+				ORDER BY 1
+				LIMIT 877) t1
+				ORDER BY 1 DESC
+				LIMIT 2) t2)
+
+
+SELECT t.Name AS track, Milliseconds,
+CASE 	 WHEN Milliseconds > t3.avg_mil THEN 'Big track'
+	 WHEN Milliseconds > t4.avg_mil AND Milliseconds < t3.avg_mil THEN 'Medium track'
+	 ELSE 'Small track' END AS 'Size track'
+FROM Track t
+JOIN t3
+ON Milliseconds = Milliseconds
+JOIN t4
+ON Milliseconds = Milliseconds
+
+
+
+5) Total sales by genre
+
+WITH t1 AS (SELECT a.AlbumId,  COUNT(*) AS count_album
+	    FROM Album a
+	    GROUP BY 1),
+
+	t2 AS (SELECT g.Name AS genre, SUM(i.UnitPrice) AS total, SUM(t1.count_album) AS variance_albums
+		FROM Track t
+		JOIN InvoiceLine i
+		ON i.TrackId = t.TrackId
+		JOIN Genre g
+		ON t.GenreId = g.GenreId
+		JOIN t1
+		ON t1.AlbumId = t.AlbumId
+		GROUP BY 1)
+
+SELECT *,(total/variance_albums) value_of_one_album
+FROM t2
